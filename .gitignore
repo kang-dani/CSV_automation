@@ -207,3 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 config.js
+backend_CSharp/Properties/debugConfig.json

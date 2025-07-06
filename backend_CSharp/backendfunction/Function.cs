@@ -17,36 +17,61 @@ namespace BackendFunction
     public class BFunc
     {
         //public async Task<Stream> Function(Stream stream, ILambdaContext context) // Asynchronous type function declaration possible
-                                                                                    // Use this when want to do asynchronous processing.
+        // Use this when want to do asynchronous processing.
         public Stream Function(Stream stream, ILambdaContext context)
         {
             try
             {
-                // Initialize BackendFunction API
+                // 백엔드 초기화
                 Backend.Initialize(ref stream);
+
+                // 요청 본문 파싱
+                string requestBody;
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8)) requestBody = requestBody = reader.ReadToEnd();
+
+                // JSON 파싱
+                JsonData data = JsonMapper.ToObject(requestBody);
+                string tableName = data["table"].ToString();
+                JsonData rowList = data["rows"];
+
+                int successCount = 0;
+                int failCount = 0;
+
+                foreach (JsonData row in rowList)
+                {
+                    Param param = new Param();
+
+                    foreach (string key in row.Keys)
+                    {
+                        param.Add(key, row[key]);
+                    }
+
+                    var result = Backend.GameData.Insert(tableName, param);
+
+                    if (result.IsSuccess()) successCount++;
+                    else failCount++;
+                }
+
+                var responseJson = new JsonData();
+                responseJson["SuccessCount"] = successCount;
+                responseJson["failCount"] = failCount;
+
+                return ToStream(responseJson.ToJson());
+
             }
             catch (Exception e)
             {
-                //Return the reason if Initializing BackendFunction API was failed
-                return ReturnErrorObject("initialize " + e.ToString());
+                var errorJson = new JsonData();
+                errorJson["error"] = e.ToString();
+                return ToStream(errorJson.ToJson());
             }
 
-            // TODO
-            
-            //Example
-            Console.WriteLine(Backend.Content["value"].ToString()); // Write "Hello world" in degubConfig.json
-            //await Task.Delay(100);                                // Optional - wait 100ms if asynchronous processing
-
-            // If return the value by Stream type, the value will send to Backend SDK 
-            return Backend.StringToStream("BackendFunction");
         }
 
-        static Stream ReturnErrorObject(string err)
+        // 응답 문자열 Stream 변환 함수
+        private Stream ToStream(string s)
         {
-            JObject error = new JObject();
-            error.Add("error", err);
-
-            return Backend.JsonToStream(error.ToString());
+            return new MemoryStream(Encoding.UTF8.GetBytes(s));
         }
     }
 }
